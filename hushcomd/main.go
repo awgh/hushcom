@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"hushcom/server"
+	"github.com/awgh/hushcom/server"
 	"log"
-	"ratnet"
-	"ratnet/transports"
+	"github.com/awgh/ratnet"
+	"github.com/awgh/ratnet/transports"
 	"time"
 )
 

@@ -1,7 +1,7 @@
 package hushcom
 
 import (
-	"bencrypt"
+	"github.com/awgh/bencrypt"
 	"bytes"
 	"encoding/binary"
 )

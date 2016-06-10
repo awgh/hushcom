@@ -1,7 +1,7 @@
 package server
 
 import (
-	"bencrypt"
+	"github.com/awgh/bencrypt"
 	"bytes"
 	"database/sql"
 	"encoding/base64"
@@ -10,10 +10,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"hushcom"
+	"github.com/awgh/hushcom"
 	"log"
-	"ratnet"
-	"ratnet/modules"
+	"github.com/awgh/ratnet"
+	"github.com/awgh/ratnet/modules"
 	"time"
 )
 

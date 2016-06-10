@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bencrypt"
+	"github.com/awgh/bencrypt"
 	"bytes"
 	"database/sql"
 	"encoding/base64"
@@ -10,14 +10,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"hushcom"
-	"hushcom/client"
+	"github.com/awgh/hushcom"
+	"github.com/awgh/hushcom/client"
 	"log"
 	"net/http"
 	"os"
-	"ratnet"
-	"ratnet/modules"
-	"ratnet/transports"
+	"github.com/awgh/ratnet"
+	"github.com/awgh/ratnet/modules"
+	"github.com/awgh/ratnet/transports"
 	"runtime"
 	"strconv"
 	"sync"
