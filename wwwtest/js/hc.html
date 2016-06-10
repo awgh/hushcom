@@ -1,0 +1,623 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+    <link rel="stylesheet" href="webix.css" type="text/css"> 
+    <script src="jquery.min.js" type="text/javascript"></script>  
+    <script src="webix.js" type="text/javascript"></script>      
+    </head>
+    <body>
+
+<pre>
+    __  __           __    ______              
+   / / / /_  _______/ /_  / ____/___  ____ ___ 
+  / /_/ / / / / ___/ __ \/ /   / __ \/ __ `__ \
+ / __  / /_/ (__  ) / / / /___/ /_/ / / / / / /
+/_/ /_/\__,_/____/_/ /_/\____/\____/_/ /_/ /_/ 
+</pre>
+
+<div id="addprofile" class="state">
+<div id="addprofileform"></div>
+</div> 
+
+<div id="profiles" class="state">
+<div id="profilesform"></div>
+</div>
+
+<div id="servers" class="state">
+<div id="serversform"></div>
+</div>
+
+<div id="addserver" class="state">
+<div id="addserverform"></div>
+</div>
+
+<div id="addchannel" class="state">
+<div id="addchannelform"></div>
+</div>
+
+<div id="chatscreen" class="state">
+<div id="chat"></div>
+</div>
+
+<script type="text/javascript" charset="utf-8">
+
+var api = '/v1/';
+var registered = false;
+var registeredCallback = null;
+
+function getProfiles(callback) { restcall('GET', 'profile', {}, callback); }
+function updateProfile(name, enabled, callback) { 
+    restcall(
+        'PUT', 
+        'profile', 
+        {'Name':name,'Enabled':enabled}, 
+        callback); 
+}
+function deleteProfile(name, callback) { restcall('POST', 'profile/delete', {'Name':name}, callback); }
+
+function registerUser() {
+    if (!registered) {
+        remoteRegister(registeredCallback);
+        setTimeout( registerUser, 3000 );
+    }      
+}
+
+function loadProfile(name, callback) { 
+    registered = false;
+    registeredCallback = callback;
+    restcall('PUT', 'profile/load', {'Name':name}, registerUser);
+}
+
+function getServers(callback) { restcall('GET', 'server', {}, callback); }
+function updateServer(name, uri, enabled, callback) { restcall('PUT', 'server', {'Name':name,'Uri':uri,'Enabled':enabled}, callback); }
+function deleteServer(name, callback) { restcall('POST', 'server/delete', {'Name':name}, callback); }
+
+function getChannels(callback) { restcall('GET', 'channel', {}, callback); }
+function sendChannel(chan, msg, callback) { 
+    restcall('POST', 'channel', {'Name':chan,'Data':msg}, callback); 
+}
+
+function updateChannel(form) { 
+    restcall('PUT', 'channel', form); 
+}
+
+function deleteChannel(form) { restcall('POST', 'channel/delete', form); }
+
+function remoteGetChannels(callback) { 
+    if( registered ) {
+        restcall('GET', 'remote/channel', {}, callback); 
+    } 
+}
+function remoteRegister(callback) { restcall('PUT', 'remote/register', {}, callback); }
+
+var remote_cc_attempts = {}
+function remoteCreateChannel(name, private, password, callback) { 
+    if (!(name in remote_cc_attempts)) {
+        restcall('PUT', 'remote/channel', 
+            {'Name':name, "Private":private, "Password":password}, callback); 
+        remote_cc_attempts[name] = true; //timeStamp();
+    } else {
+        console.log("prevented repeat remote channel create attempt: "+name);
+    }
+}
+
+function remoteChannelJoin(name, password, key, callback) { 
+    restcall('POST', 'remote/channel_join', {'Name':name, "Password":password, "Key":key}, callback); 
+}
+
+function restcall(verb, noun, data, callback) {
+    $.ajax({
+        url: api + noun,
+        type: verb,
+        data: data,
+        success: callback
+    });
+}
+
+function restcallback(d) {
+  alert('Result:\n\n'+window.atob(d.data)+'\n\nError:\n\n'+d.error);
+}
+
+var STATE = {
+  ADDPROFILE    : 1,
+  PROFILES      : 2,
+  SERVERS       : 3,
+  ADDSERVER     : 4,
+  CHAT          : 5,
+  ADDCHANNEL    : 6
+};
+
+var currentProfile = "";
+var currentChannel = "";
+var channelMap = {};
+var channelKeys = {};
+var joinedChannels = [];
+var remoteChannelList = [];
+
+function timeStamp() {
+  var now = new Date();
+  var date = [ now.getMonth() + 1, now.getDate(), now.getFullYear() ];
+  var time = [ now.getHours(), now.getMinutes(), now.getSeconds() ];
+  var suffix = ( time[0] < 12 ) ? "AM" : "PM";
+  time[0] = ( time[0] < 12 ) ? time[0] : time[0] - 12;
+  time[0] = time[0] || 12;
+
+  for ( var i = 1; i < 3; i++ ) {
+    if ( time[i] < 10 ) {
+      time[i] = "0" + time[i];
+    }
+  }
+
+  return date.join("/") + " " + time.join(":") + " " + suffix;
+}
+
+(function poll() {
+   setTimeout(function() {
+        $.ajax({
+            url: api + 'poll',
+            type: 'GET',
+            data: {},
+            success: function(d) { 
+                if( d.data.length > 0 ) {
+                    var lines = d.data.split('\n')
+                    $.each(lines, function(index, value) {
+                        if( value.length > 0 ) {                    
+                            var msg = jQuery.parseJSON(value);                            
+                            switch (msg['MsgType']) {
+                                case 'RegisterResp':
+                                    console.log("RegisterResp");
+                                    registered = true;
+                                    break;
+                                case 'ListChansResp':
+                                    //console.log("ListChansResp");                         
+                                    $.each(msg.Data.Channels, function(index, value) {
+                                        channelKeys[value['Name']] = value['PubKey'];    
+                                        remoteChannelList.push( value['Name'] );
+                                    });
+                                    remoteChannelList = remoteChannelList.sort()
+                                    
+                                    // todo: this is just for the demo, k?
+                                    $.each(joinedChannels, function(idx, val) {
+                                        if (remoteChannelList.indexOf(val) < 0) {                                        
+                                            remoteCreateChannel(val, 0, "", function(){
+                                                webix.message("Claiming channel "+val);
+                                            })
+                                        } 
+                                    }); 
+                                    //console.log($$("remoteChannelList"));      
+                                    $$("remoteChannelList").clearAll();
+                                    $$("remoteChannelList").parse(remoteChannelList);        
+                                    break;
+                                case 'Channel':
+                                    console.log("Channel msg");                                    
+                                    printChannelMsg(msg.Channel, msg.From, msg.Data);
+                                    break;
+                            }
+                        }
+                    });
+                }
+            },
+            complete: poll
+        });
+    }, 3000);
+})();
+
+function initStates() {
+
+    webix.ui.fullScreen();
+
+    $("#addprofileform").webix_form({ 
+    id:"addprofileform",
+    width:$(window).width()-15,
+    elements:[
+        { id:"addpname",view:"text", label:"Profile Name",labelWidth:150 },        
+        {cols:[
+            { view:"button", value:"Create Profile", type:"form", click:
+            function(){
+                var pn = $$("addpname").getValue();
+                if(pn.length>0){
+                    enabled = ($$("profiledt").count() == 0);
+                    updateProfile(pn, enabled, function(){
+                        $("#addprofile").hide(); 
+                        setTimeout( function(){stateMachine(STATE.PROFILES);}, 0);
+                    });
+                } else { webix.message("Profile Name cannot be empty."); }
+            }}      
+        ]}
+    ]
+    });
+
+    $("#profilesform").webix_form({
+    id:"profilesform",    
+    width:$(window).width()-15,
+    elements:[
+        { id:"profiledt", view:"datatable", columns:[
+                    { id:"Name",    header:"Profile Name", css:"rank", adjust:true},                 
+                    { id:"Enabled", header:"Enabled", template:"{common.radio()}"},                       
+                    { id:"delete", header:"", template:"{common.trashIcon()}", css:{"text-align":"right"}}                    
+                ],
+                onClick:{ 
+                    "fa-trash": function(e, id){
+                        deleteProfile($$("profiledt").getItem(id).Name, function(){
+                            getProfiles(function(d){
+                                webix.message("Deleted Profile "+$$("profiledt").getItem(id).Name);
+                                $$("profiledt").clearAll();
+                                $$("profiledt").parse(window.atob(d.data));
+                            });
+                        });                        
+                        return false; 
+                    }},
+                select:"row",
+                autoheight:true,
+                autowidth:true                       
+            },        
+        {cols:[
+            { view:"button", value:"Create Profile", type:"form", click:
+                function(){  $("#profiles").hide(); setTimeout(function(){stateMachine(STATE.ADDPROFILE);}); }},
+            { view:"button", value:"Next", type:"form", click:
+                function(){  $("#profiles").hide(); setTimeout(function(){stateMachine(STATE.SERVERS);}); }}
+        ]}
+    ]
+    });
+    $$("profiledt").attachEvent("onCheck", function(row, col, state){        
+        $$("profiledt").eachRow( 
+            function (row){ 
+                var record = $$("profiledt").getItem(row);        
+                //alert(record.Name+" "+record.Enabled);
+                updateProfile(record.Name, record.Enabled, function(){});
+            });
+    });
+
+    $("#serversform").webix_form({    
+    id:"serversform",
+    width:$(window).width()-15,
+    elements:[
+        { view:"datatable", id:"serverdt", columns:[
+                    { id:"Name", header:"Server Name", css:"rank", adjust:true},                 
+                    { id:"Uri", header:"URI", adjust:true},
+                    { id:"Enabled", header:"Enabled", template:"{common.checkbox()}"},
+                    { id:"delete", header:"", template:"{common.trashIcon()}", css:{"text-align":"right"}}                    
+                ],
+                onClick:{ 
+                    "fa-trash": function(e, id){
+                        deleteServer($$("serverdt").getItem(id).Name, function(){
+                            getServers(function(d){                               
+                                webix.message("Deleted Server "+$$("serverdt").getItem(id).Name);
+                                $$("serverdt").clearAll();
+                                $$("serverdt").parse(window.atob(d.data));                                
+                            });                            
+                        });                        
+                        return false; //here it blocks default behavior
+                    }},
+                select:"row",
+                autoheight:true,
+                autowidth:true
+            },        
+        {cols:[
+            { view:"button", value:"New Server", type:"form", click:
+                function(){ $("#servers").hide(); setTimeout(function(){stateMachine(STATE.ADDSERVER);}); }},
+            { view:"button", value:"Next", type:"form", click:
+                function(){
+                    // Login 
+                    $$("profiledt").eachRow( 
+                        function (row){ 
+                            var record = $$("profiledt").getItem(row);        
+                            if (record.Enabled) {
+                                currentProfile = record.Name;
+                                console.log("Current Profile: "+currentProfile);
+                                loadProfile(record.Name, function(){
+                                    console.log("Profile Loaded: "+currentProfile);
+                                    webix.message("Connecting as "+record.Name);
+                                    });
+                            }                            
+                    });
+                    $("#servers").hide(); setTimeout(function(){stateMachine(STATE.CHAT);}); }}
+        ]}
+    ]
+    });
+    $$("serverdt").attachEvent("onCheck", function(row, col, state){
+        var record = $$("serverdt").getItem(row);        
+        updateServer(record.Name, record.Uri, record.Enabled, function(){});
+    });
+
+    $("#addserverform").webix_form({
+    id:"addserverform",
+    width:$(window).width()-15,
+    elements:[
+        { id:"servername",view:"text", label:"Server Name", labelWidth:150 },
+        { id:"serveruri",view:"text", label:"Server URI", labelWidth:250 },
+        {cols:[
+            { view:"button", value:"Cancel", type:"form", click: function(){
+                $("#addserver").hide(); setTimeout(function(){stateMachine(STATE.SERVERS);});
+            }},
+            { view:"button", value:"Add Server", type:"form", click:
+            function(){                
+                var sn = $$("servername").getValue();
+                var su = $$("serveruri").getValue();
+                if(sn.length>0 && su.length>0){
+                    updateServer(sn, su, true, function(){                        
+                        $("#addserver").hide(); setTimeout(function(){
+                            stateMachine(STATE.SERVERS);
+                        });
+                    });
+                } else {
+                    if(sn.length<1) { webix.message("Server Name cannot be empty."); }
+                    if(su.length<1) { webix.message("Server URI cannot be empty."); }
+                }
+            }}
+        ]}
+    ]});
+
+    $("#chat").webix_accordion({
+    id:"chat",
+    width:$(window).width()-15,
+    type:"space",
+    multi: true,
+    height:400,  
+    cols:[
+        { header:"chans", body:{
+            view:"layout",
+            rows:[
+            {
+                view: "tabview",
+                cells: [
+                {
+                    header: "Joined",
+                    body: {
+                        id:"channelList", view:"list", select:true
+                    }
+                },
+                {
+                    header: "All",
+                    body: {
+                        id:"remoteChannelList", view:"list", select:true
+                    }
+                }]                
+            },
+            { view:"button", value:"+", type:"form", click:function(){
+                $("#chatscreen").hide(); setTimeout(function(){stateMachine(STATE.ADDCHANNEL);});
+            }},
+            { view:"button", value:"refresh", type:"form", click:function(){
+                chanListUpdate();
+            }} 
+            ]            
+        }, width:250},
+        {
+            view:"layout", rows:[
+            { 
+                view: "multiview",                
+                id: "chatmv", 
+                cells: [{}]
+            },
+            { id: "channelCmd", view:"text", value:"" }
+            ]
+        }            
+    ]         
+    });    
+    $$("channelCmd").attachEvent("onChange", function(newv, oldv){
+        if(newv.length > 0 && currentChannel.length > 0) {       
+            sendChannel(currentChannel, newv, function(){              
+                $$("channelCmd").setValue("");                
+            });
+        }
+    });
+    $$("channelList").attachEvent("onAfterSelect", function(id){        
+        var chanName = $$("channelList").getItem(id).value;        
+        if (!(chanName in channelMap)) {
+            $$("chatmv").addView({id:"chan_"+chanName,template:"<div id='chan_"+chanName+"'></div>"});
+            channelMap[chanName] = "chan_"+chanName;
+        }        
+        currentChannel = chanName;
+        $$("chatmv").setValue("chan_"+chanName);
+    });
+    $$("remoteChannelList").attachEvent("onItemDblClick", function(id, e, node){
+        chnJoinId = id;
+        webix.modalbox({
+            title:"Join Channel?",
+            buttons:["Yes", "No"],
+            text:"id: "+id, //todo: add password field
+            //width:500,
+            callback: function(result){
+                switch(result){
+                    case "0": 
+                      var key = channelKeys[chnJoinId];
+                      remoteChannelJoin(chnJoinId, "", key, function(d) {
+                         webix.message("Requested access to channel "+chnJoinId);
+                      }); 
+                      break;
+                    case "1":
+                      break;
+                }
+            }});        
+    });
+
+    $("#addchannelform").webix_form({    
+    id:"addchannelform",
+    width:$(window).width()-15,
+    elements:[
+        { id:"adc_name",view:"text", label:"Channel Name",labelWidth:150 },
+/*
+        { id:"adc_private", view:"checkbox", label:"Private", labelWidth:150},
+        { id:"adc_password", view:"text", label:"Password", labelWidth:250 },
+*/
+        { cols:[
+            { view:"button", value:"Cancel", type:"form", click: function(){
+                $("#addchannel").hide(); setTimeout(function(){stateMachine(STATE.CHAT);});
+            }},
+            { view:"button", value:"Create Channel", type:"form", click: function(){
+                var an = $$("adc_name").getValue();
+                //var ap = $$("adc_private").getValue();
+                //var apwd = $$("adc_password").getValue();
+                var ap = 0;
+                var apwd = "";
+
+                if(an.length>0){
+                    remoteCreateChannel(an, ap, apwd, function(){                        
+                        $("#addchannel").hide(); setTimeout(function(){stateMachine(STATE.CHAT);});
+                    });
+                } else { webix.message("Channel Name cannot be empty."); }
+            }}
+        ]}
+    ]
+    });
+
+    webix.event(window, "resize", function(){     
+        
+        var w = $(window).width()-15;
+
+        $$("addprofileform").config.width = w;
+        $$("profilesform").config.width = w;
+        $$("serversform").config.width = w;
+        $$("addserverform").config.width = w;
+        $$("chat").config.width = w;
+        $$("addchannelform").config.width = w;
+
+        $$("addprofileform").resize();
+        $$("profilesform").resize();
+        $$("serversform").resize();
+        $$("addserverform").resize();
+        $$("chat").resize();
+        $$("addchannelform").resize();
+    });
+
+    $("#addprofile").hide();
+    $("#profiles").hide();
+    $("#servers").hide();
+    $("#addserver").hide();
+    $("#chatscreen").hide();
+    $("#addchannel").hide();   
+}
+
+function stateMachine(currentState) { 
+    clearChanListTimer();
+
+    switch (currentState) {
+      case STATE.ADDPROFILE:
+        $("#addprofile").show();
+        break;    
+     
+      case STATE.PROFILES:    
+        getProfiles(function(d){
+            $$("profiledt").clearAll();
+            $$("profiledt").parse(window.atob(d.data));
+        });        
+        $("#profiles").show();
+        break;
+
+      case STATE.SERVERS:
+        getServers(function(d){
+            $$("serverdt").clearAll();
+            $$("serverdt").parse(window.atob(d.data));
+        });
+        $("#servers").show();
+        break;
+
+      case STATE.ADDSERVER:
+        $("#addserver").show();
+        break;    
+
+      case STATE.CHAT:
+        chanListUpdate();
+        $("#chatscreen").show();
+        break;    
+
+      case STATE.ADDCHANNEL:
+        $("#addchannel").show();
+        break;
+    }
+}
+
+///
+
+var chanListTimer = null;
+function clearChanListTimer() {
+    if(chanListTimer!=null) {
+        clearTimeout(chanListTimer);
+    }   
+}
+
+function chanListUpdate() {
+    clearChanListTimer();
+ 
+    getChannels(function(d){        
+        if(d != null && d.data.length>0) { 
+            var arr = $.parseJSON( window.atob(d.data) );
+            var tmp = []
+            $.each(arr, function(index, value) {
+                tmp.push( value );
+            });            
+            joinedChannels = tmp.sort()
+            $$("channelList").clearAll();
+            $$("channelList").parse(joinedChannels);            
+            //console.log("local channels parse: "+window.atob(d.data));
+        }});
+
+    remoteGetChannels(null);
+
+    chanListTimer = setTimeout(chanListUpdate, 7000);
+    //console.log('chanListUpdate');
+}
+
+function checkInitChannel(chan){
+    if (!(chan in channelMap)) {
+        $$("chatmv").addView({id:"chan_"+chan,template:"<div id='chan_"+chan+"'></div>"});
+        channelMap[chan] = "chan_"+chan;
+    }        
+}
+
+function printChannelMsg(chan, from, msg) {
+    checkInitChannel(chan);
+    $("#chan_"+chan).append( "<div>["+timeStamp()+"]  <b>&lt;"
+        +htmlEscape(from)+"&gt;</b>  "+htmlEscape(msg)+"</div>" );
+}
+    
+function viewChannel(chan){
+    checkInitChannel(chan);        
+    currentChannel = chan;
+    $$("chatmv").setValue("chan_"+chan);
+}
+
+// Initialization and Start State stuff
+webix.ready(function(){
+    initStates();
+
+    // Start State
+    getProfiles(function(d){        
+        if(d.data == null || d.data.length < 0) {
+            stateMachine(STATE.ADDPROFILE);        
+            return;
+        } else {
+            var profiledata = jQuery.parseJSON(window.atob(d.data));
+            if(!profiledata || profiledata.length == 0) {
+                stateMachine(STATE.ADDPROFILE);            
+                return;
+            } else {
+                stateMachine(STATE.PROFILES);            
+            }
+        }
+    });
+});
+
+function htmlEscape(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\//g, '&#x2F;'); //optional, recommended by OWASP
+}
+
+function htmlUnescape(value){
+    return String(value)
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');        
+}
+
+</script> 
+
+    </body>
+</html>
