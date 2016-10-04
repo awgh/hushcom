@@ -1,20 +1,18 @@
 package server
 
 import (
-	"github.com/awgh/bencrypt"
 	"bytes"
-	"database/sql"
-	"encoding/base64"
-	"encoding/binary"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/awgh/hushcom"
 	"log"
-	"github.com/awgh/ratnet"
-	"github.com/awgh/ratnet/modules"
 	"time"
+
+	"github.com/awgh/bencrypt/bc"
+	"github.com/awgh/bencrypt/ecc"
+	"github.com/awgh/hushcom"
+	"github.com/awgh/ratnet/api"
 )
 
 // Remove item from list
@@ -40,7 +38,7 @@ func chkList(list *[]string, item string) bool {
 
 // HCSrvChan - Server data record
 type HCSrvChan struct {
-	Key      interface{}
+	Key      bc.PubKey
 	Password string
 	Admins   []string
 	Users    []string
@@ -50,36 +48,33 @@ type HCSrvChan struct {
 type Server struct {
 	// Globals
 	HCSrvChans map[string]*HCSrvChan
-	HCSrvUsers map[string]interface{}
+	HCSrvUsers map[string]bc.PubKey
 
 	// Settings
-	Database func() *sql.DB
+	Node api.Node
 }
 
-// Singleton Instance of HushCom Server
-var ServerInstance *Server
-
-// Register this module with core
-func init() {
+// New : Make a new instance of a Hushcom Server
+func New(node api.Node) *Server {
 	server := new(Server)
-	ServerInstance = server
+	server.Node = node
 	server.HCSrvChans = make(map[string]*HCSrvChan)
-	server.HCSrvUsers = make(map[string]interface{})
-	modules.Dispatchers[hushcom.ServerID] = server
+	server.HCSrvUsers = make(map[string]bc.PubKey)
+	return server
 }
 
 // GetName - Getter for readable name of the module
-func (Server) GetName() string {
+func (*Server) GetName() string {
 	return "HushCom Server Module"
 }
 
-// HandleDispatch - handler for messages that match the Dispatcher code
-func (modInst Server) HandleDispatch(msg []byte) error {
+// HandleMsg - handler for messages
+func (modInst *Server) HandleMsg(msg api.Msg) error {
 
 	//	log.Println("HushCom Server HandleDispatch")
 
 	// Create a decoder and receive a value.
-	dec := gob.NewDecoder(bytes.NewBuffer(msg))
+	dec := gob.NewDecoder(msg.Content)
 	var metaData hushcom.Msg
 	err := dec.Decode(&metaData)
 	if err != nil {
@@ -105,11 +100,14 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 		// unmarshal msg into msgObj
 		var msgObj hushcom.RegisterMsg
 		if err := json.Unmarshal(metaData.Data, &msgObj); err != nil {
-			return errors.New("Could not unmarshal 'Register' message")
+			return errors.New("Could not unmarshal 'Register' message:\n" + string(metaData.Data))
 		}
-		userKey = msgObj.Key
+		k := new(ecc.PubKey)
+		if err := k.FromB64(msgObj.Key); err != nil {
+			return err
+		}
+		userKey = k
 	}
-	// todo : sanity check key here via bencrypt
 	if userKey == nil {
 		// this is not a register message and it isn't signed, so ignore
 		return nil //todo: return security error of some kind?
@@ -117,11 +115,7 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 	//	log.Println("user key: ", userKey)
 
 	// Verify that the msg signature matches the user's key (or new key for Register)
-	key, ok := userKey.([]byte) //todo - fix for RSA?
-	if !ok {
-		log.Fatal("userKey type assertion failed - your code is broken.")
-	}
-	if !hushcom.VerifyMsg(key, metaData) {
+	if !hushcom.VerifyMsg(userKey, metaData) {
 		return errors.New("Failure to authenticate user: " + metaData.From + " with signature " + hex.EncodeToString(metaData.Sig) + ".")
 	}
 	// At this point, the message is considered authenticated.
@@ -141,15 +135,8 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 		if newUser {
 			// yay! New user!
 			modInst.HCSrvUsers[metaData.From] = userKey
-			uk, ok := userKey.([]byte) //todo: revisit this for RSA support
-			if !ok {
-				return errors.New("Register: Tried to use an RSA key?")
-			}
-			var a ratnet.ApiCall
-			a.Action = "AddDest"
-			a.Args = []string{metaData.From, base64.StdEncoding.EncodeToString(uk)}
-			_, err := ratnet.Api(&a, modInst.Database, true)
-			if err != nil {
+
+			if err := modInst.Node.AddContact(metaData.From, userKey.ToB64()); err != nil {
 				return err
 			}
 		}
@@ -189,7 +176,7 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 			if srvChan.Password == "" {
 				var c hushcom.Channel
 				c.Name = channel
-				c.PubKey = srvChan.Key
+				c.PubKey = srvChan.Key.ToB64()
 				chans = append(chans, c)
 			}
 		}
@@ -205,6 +192,7 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 			return err
 		}
 		msg.Data = jsonb
+
 		return modInst.sendToClient(msg, metaData.From)
 
 	case "NewChan":
@@ -218,8 +206,14 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 			return errors.New("Error creating channel")
 		}
 		// if channel doesn't exist, create channel
-		modInst.HCSrvChans[msgObj.ChanName] = new(HCSrvChan)               // make chan object
-		modInst.HCSrvChans[msgObj.ChanName].Key = msgObj.ChanPubKey        // add chan key
+		modInst.HCSrvChans[msgObj.ChanName] = new(HCSrvChan) // make chan object
+
+		k := new(ecc.PubKey)
+		if err := k.FromB64(msgObj.ChanPubKey); err != nil {
+			return err
+		}
+		modInst.HCSrvChans[msgObj.ChanName].Key = k // add chan key
+
 		modInst.HCSrvChans[msgObj.ChanName].Password = msgObj.ChanPassword // add password (optional)
 		modInst.HCSrvChans[msgObj.ChanName].Admins = append(               // make user a chan admin
 			modInst.HCSrvChans[msgObj.ChanName].Admins,
@@ -234,22 +228,12 @@ func (modInst Server) HandleDispatch(msg []byte) error {
 	return nil
 }
 
-func (modInst Server) sendToClient(msg hushcom.Msg, destName string) error {
-
-	var cid ratnet.ApiCall
-	cid.Action = "CID"
-	cpubsrv, err := ratnet.Api(&cid, modInst.Database, true)
+func (modInst *Server) sendToClient(msg hushcom.Msg, destName string) error {
+	cpubsrv, err := modInst.Node.CID()
 	if err != nil {
 		return err
 	}
-	crypt := new(bencrypt.ECC)
-	cp, _ := crypt.B64toPublicKey(string(cpubsrv))
-	uk, ok := cp.([]byte) //todo: revisit this for RSA support
-	if !ok {
-		return errors.New("Tried to use an RSA key?")
-	}
-
-	msg.Sig, err = hushcom.SignMsg(uk, msg)
+	msg.Sig, err = hushcom.SignMsg(cpubsrv, msg)
 	if err != nil {
 		return err
 	}
@@ -260,15 +244,7 @@ func (modInst Server) sendToClient(msg hushcom.Msg, destName string) error {
 	if err != nil {
 		return err
 	}
-	buf := make([]byte, 2)
-	binary.BigEndian.PutUint16(buf, hushcom.ClientID)
-	buf = append(buf, output.Bytes()...)
-
-	var b ratnet.ApiCall
-	b.Action = "Send"
-	b.Args = []string{destName, base64.StdEncoding.EncodeToString(buf)}
-	_, err = ratnet.Api(&b, modInst.Database, true)
-	if err != nil {
+	if err := modInst.Node.Send(destName, output.Bytes()); err != nil {
 		return err
 	}
 	return nil

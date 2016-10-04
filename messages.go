@@ -1,16 +1,11 @@
 package hushcom
 
 import (
-	"github.com/awgh/bencrypt"
 	"bytes"
 	"encoding/binary"
+
+	"github.com/awgh/bencrypt/bc"
 )
-
-// ServerID - Dispatcher Message Prefix for Hushcom Server
-var ServerID uint16 = 0x72C1
-
-// ClientID - Dispatcher Message Prefix for Hushcom Client
-var ClientID uint16 = 0x72C0
 
 // Msg - Core message struct for HC messages
 type Msg struct {
@@ -37,7 +32,7 @@ func (inst Msg) SignMe() []byte {
 
 // RegisterMsg - Register a new user/pubkey pair
 type RegisterMsg struct {
-	Key []byte
+	Key string // b64 pubkey
 }
 
 // RegisterRespMsg - Registration response message
@@ -48,14 +43,14 @@ type RegisterRespMsg struct {
 // NewChanMsg - Create a new channel
 type NewChanMsg struct {
 	ChanName     string
-	ChanPubKey   []byte
+	ChanPubKey   string // b64 pubkey
 	ChanPassword string
 }
 
 // JoinChanMsg - Join channel request
 type JoinChanMsg struct {
 	Channel   string
-	ReqPubKey []byte
+	ReqPubKey string // b64 pubkey
 	Password  string
 }
 
@@ -74,7 +69,7 @@ type ChannelMsg struct {
 // Channel - Common Representation of a Channel
 type Channel struct {
 	Name   string
-	PubKey interface{}
+	PubKey string // this should be base64 encoded
 }
 
 // ListChansRespMsg - List channels response
@@ -83,13 +78,13 @@ type ListChansRespMsg struct {
 }
 
 // SignMsg - Sign a message (key is not base64 here)
-func SignMsg(key []byte, msg Msg) ([]byte, error) {
+func SignMsg(key bc.PubKey, msg Msg) ([]byte, error) {
 	//log.Println("SignMsg, key:", key)
-	return bencrypt.DestHash(key, msg.SignMe())
+	return bc.DestHash(key, msg.SignMe())
 }
 
 // VerifyMsg - Verify a message signature
-func VerifyMsg(key []byte, msg Msg) bool {
+func VerifyMsg(key bc.PubKey, msg Msg) bool {
 	sig, err := SignMsg(key, msg)
 	if err != nil {
 		return false

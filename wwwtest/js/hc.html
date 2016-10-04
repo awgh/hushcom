@@ -69,7 +69,7 @@ function loadProfile(name, callback) {
 }
 
 function getServers(callback) { restcall('GET', 'server', {}, callback); }
-function updateServer(name, uri, enabled, callback) { restcall('PUT', 'server', {'Name':name,'Uri':uri,'Enabled':enabled}, callback); }
+function updateServer(name, uri, enabled, callback) { restcall('PUT', 'server', {'Name':name,'URI':uri,'Enabled':enabled}, callback); }
 function deleteServer(name, callback) { restcall('POST', 'server/delete', {'Name':name}, callback); }
 
 function getChannels(callback) { restcall('GET', 'channel', {}, callback); }
@@ -95,7 +95,7 @@ function remoteCreateChannel(name, private, password, callback) {
     if (!(name in remote_cc_attempts)) {
         restcall('PUT', 'remote/channel', 
             {'Name':name, "Private":private, "Password":password}, callback); 
-        remote_cc_attempts[name] = true; //timeStamp();
+        //todo: remote_cc_attempts[name] = true; //timeStamp();
     } else {
         console.log("prevented repeat remote channel create attempt: "+name);
     }
@@ -115,7 +115,7 @@ function restcall(verb, noun, data, callback) {
 }
 
 function restcallback(d) {
-  alert('Result:\n\n'+window.atob(d.data)+'\n\nError:\n\n'+d.error);
+  alert('Result:\n\n'+d.data+'\n\nError:\n\n'+d.error);
 }
 
 var STATE = {
@@ -242,7 +242,7 @@ function initStates() {
                             getProfiles(function(d){
                                 webix.message("Deleted Profile "+$$("profiledt").getItem(id).Name);
                                 $$("profiledt").clearAll();
-                                $$("profiledt").parse(window.atob(d.data));
+                                $$("profiledt").parse(d.data);
                             });
                         });                        
                         return false; 
@@ -274,7 +274,7 @@ function initStates() {
     elements:[
         { view:"datatable", id:"serverdt", columns:[
                     { id:"Name", header:"Server Name", css:"rank", adjust:true},                 
-                    { id:"Uri", header:"URI", adjust:true},
+                    { id:"URI", header:"URI", adjust:true},
                     { id:"Enabled", header:"Enabled", template:"{common.checkbox()}"},
                     { id:"delete", header:"", template:"{common.trashIcon()}", css:{"text-align":"right"}}                    
                 ],
@@ -284,7 +284,7 @@ function initStates() {
                             getServers(function(d){                               
                                 webix.message("Deleted Server "+$$("serverdt").getItem(id).Name);
                                 $$("serverdt").clearAll();
-                                $$("serverdt").parse(window.atob(d.data));                                
+                                $$("serverdt").parse(d.data);                                
                             });                            
                         });                        
                         return false; //here it blocks default behavior
@@ -317,7 +317,7 @@ function initStates() {
     });
     $$("serverdt").attachEvent("onCheck", function(row, col, state){
         var record = $$("serverdt").getItem(row);        
-        updateServer(record.Name, record.Uri, record.Enabled, function(){});
+        updateServer(record.Name, record.URI, record.Enabled, function(){});
     });
 
     $("#addserverform").webix_form({
@@ -499,7 +499,7 @@ function stateMachine(currentState) {
       case STATE.PROFILES:    
         getProfiles(function(d){
             $$("profiledt").clearAll();
-            $$("profiledt").parse(window.atob(d.data));
+            $$("profiledt").parse(d.data);
         });        
         $("#profiles").show();
         break;
@@ -507,7 +507,7 @@ function stateMachine(currentState) {
       case STATE.SERVERS:
         getServers(function(d){
             $$("serverdt").clearAll();
-            $$("serverdt").parse(window.atob(d.data));
+            $$("serverdt").parse(d.data);
         });
         $("#servers").show();
         break;
@@ -539,12 +539,12 @@ function clearChanListTimer() {
 function chanListUpdate() {
     clearChanListTimer();
  
-    getChannels(function(d){        
-        if(d != null && d.data.length>0) { 
-            var arr = $.parseJSON( window.atob(d.data) );
+    getChannels(function(d){            
+        if(d != null && d.data && d.data.length>0) { 
+            var arr = d.data;
             var tmp = []
             $.each(arr, function(index, value) {
-                tmp.push( value );
+                tmp.push( value.Name );
             });            
             joinedChannels = tmp.sort()
             $$("channelList").clearAll();
@@ -585,15 +585,8 @@ webix.ready(function(){
     getProfiles(function(d){        
         if(d.data == null || d.data.length < 0) {
             stateMachine(STATE.ADDPROFILE);        
-            return;
         } else {
-            var profiledata = jQuery.parseJSON(window.atob(d.data));
-            if(!profiledata || profiledata.length == 0) {
-                stateMachine(STATE.ADDPROFILE);            
-                return;
-            } else {
-                stateMachine(STATE.PROFILES);            
-            }
+            stateMachine(STATE.PROFILES);            
         }
     });
 });

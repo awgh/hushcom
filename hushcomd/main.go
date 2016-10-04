@@ -3,22 +3,28 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/awgh/hushcom/server"
 	"log"
-	"github.com/awgh/ratnet"
-	"github.com/awgh/ratnet/transports"
 	"time"
+
+	"github.com/awgh/bencrypt/ecc"
+	"github.com/awgh/hushcom/server"
+	"github.com/awgh/ratnet/api"
+	"github.com/awgh/ratnet/nodes/qldb"
+	"github.com/awgh/ratnet/policy"
+	"github.com/awgh/ratnet/transports/https"
 )
 
 // usage: ./hushcomd -dbfile=ratnet2.ql -p=20003 -ap=21003
 
 var serverInst *server.Server
 
-func serve(database string, listenPublic string,
-	certfile string, keyfile string) {
+func serve(transportPublic api.Transport, node api.Node, listenPublic string) {
 
-	transports.NewServer("https", listenPublic, certfile, keyfile, database, false)
-	log.Println("Public Server started: ", listenPublic)
+	node.SetPolicy(
+		policy.NewServer(transportPublic, listenPublic, false))
+
+	log.Println("Public Hushcom Server starting: ", listenPublic)
+	node.Start()
 }
 
 func main() {
@@ -28,24 +34,30 @@ func main() {
 
 	flag.StringVar(&dbFile, "dbfile", "ratnet.ql", "QL Database File")
 	flag.IntVar(&publicPort, "p", 20001, "HTTPS Public Port (*)")
-
 	flag.Parse()
 	publicString := fmt.Sprintf(":%d", publicPort)
 
-	serverInst := server.ServerInstance
-	db := ratnet.BootstrapDB(dbFile)
-	serverInst.Database = db
+	node := qldb.New(new(ecc.KeyPair), new(ecc.KeyPair))
+	node.BootstrapDB(dbFile)
 
-	serve(dbFile, publicString, "cert.pem", "key.pem")
+	serverInst := server.New(node)
+	go func() {
+		for {
+			msg := <-node.Out()
+			if err := serverInst.HandleMsg(msg); err != nil {
+				log.Println("hushcomd ratnet bg thread: " + err.Error())
+			}
+		}
+	}()
 
 	// print public content key
-	var id ratnet.ApiCall
-	id.Action = "CID"
-	pubsrv, err := ratnet.Api(&id, db, true)
+	pubsrv, err := node.CID()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	log.Println("Public Content Key: ", string(pubsrv))
+	log.Println("Public Content Key: ", string(pubsrv.ToB64()))
+
+	serve(https.New("cert.pem", "key.pem", node, true), node, publicString)
 
 	for {
 		time.Sleep(time.Second * 3600)
