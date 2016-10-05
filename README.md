@@ -1,6 +1,6 @@
 # What is this?
 
-The Hushcom project is a sample distributed IRC-like chat program, which demonstrates how the ratnet project can be used to develop a full application.
+The Hushcom project is a sample distributed IRC-like chat program, which demonstrates how the [ratnet project](https://github.com/awgh/ratnet) can be used to develop a full application.
 
 The project includes both a client and server program.
 
