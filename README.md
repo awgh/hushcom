@@ -34,7 +34,9 @@ Hushcom is interesting as an example for several reasons:
 
 #Demo
 
-There is an include webix-based demo which can be launched with the "go.bat" or "go.sh" command from the "wwwtest" directory. This will launch two client sessions which can be connected to via: https://localhost:20011/js/hc.html https://localhost:20021/js/hc.html
+There is an include webix-based demo which can be launched with the "go.bat" or "go.sh" command from the "wwwtest" directory. This will launch two client sessions which can be connected to via:
+ https://localhost:20011/js/hc.html 
+ https://localhost:20021/js/hc.html
 
 SSL Certs are self-signed, so you will likely have to click through some warnings.
 
