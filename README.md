@@ -24,19 +24,20 @@ The server/ folder implements the message handling/passing logic of the server.
 
 Hushcom is interesting as an example for several reasons:
 
-  - Implements signed and authenticated messages over ratnet, which does not normally provide them. This is meant to demonstrate how easy this is to do using existing components, as well as providing tested sample code to accomplish this.
+- Implements signed and authenticated messages over ratnet, which does not normally provide them. This is meant to demonstrate how easy this is to do using existing components, as well as providing tested sample code to accomplish this.
 
-  - Implements a browser-based UI using a REST interface and internal web server.
+- Implements a browser-based UI using a REST interface and internal web server.
 
-  - Cross-compiles to Android, where it has been deployed as an APK (native hushcomd plus simple UI app that just opens a browser widget to localhost)
+- Cross-compiles to Android, where it has been deployed as an APK (native hushcomd plus simple UI app that just opens a browser widget to localhost)
 
-  - Distributed IRC scheme. The Hushcom server only knows user and channel names and PUBLIC keys. The server cannot read the contents of any channel or private messages.
+- Distributed IRC scheme. The Hushcom server only knows user and channel names and PUBLIC keys. The server cannot read the contents of any channel or private messages.
 
 #Demo
 
 There is an include webix-based demo which can be launched with the "go.bat" or "go.sh" command from the "wwwtest" directory. This will launch two client sessions which can be connected to via:
- https://localhost:20011/js/hc.html 
- https://localhost:20021/js/hc.html
+
+- https://localhost:20011/js/hc.html 
+- https://localhost:20021/js/hc.html
 
 SSL Certs are self-signed, so you will likely have to click through some warnings.
 
