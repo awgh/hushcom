@@ -43,6 +43,12 @@ SSL Certs are self-signed, so you will likely have to click through some warning
 
 From this point, you can create user profiles, add and join channels, and talk to yourself from one browser session to the other.
 
+# Related Projects
+
+- [Bencrypt, crypto abstraction layer & utils](https://github.com/awgh/bencrypt)
+- [Ratnet, onion-routed messaging system with pluggable transports](https://github.com/awgh/ratnet)
+- [HushCom, simple IRC-like client & server](https://github.com/awgh/hushcom)
+
 #Authors and Contributors
 
 awgh@awgh.org (@awgh)
