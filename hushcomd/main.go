@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -16,16 +17,18 @@ import (
 
 // usage: ./hushcomd -dbfile=ratnet2.ql -p=20003 -ap=21003
 
-var serverInst *server.Server
-
 func serve(transportPublic api.Transport, node api.Node, listenPublic string) {
 
 	node.SetPolicy(
 		policy.NewServer(transportPublic, listenPublic, false))
 
 	log.Println("Public Hushcom Server starting: ", listenPublic)
-	node.Start()
+	if err := node.Start(); err != nil {
+		log.Fatal(err)
+	}
 }
+
+var db func() *sql.DB
 
 func main() {
 
@@ -38,7 +41,7 @@ func main() {
 	publicString := fmt.Sprintf(":%d", publicPort)
 
 	node := qldb.New(new(ecc.KeyPair), new(ecc.KeyPair))
-	node.BootstrapDB(dbFile)
+	db = node.BootstrapDB(dbFile)
 
 	serverInst := server.New(node)
 	go func() {
@@ -46,6 +49,7 @@ func main() {
 			msg := <-node.Out()
 			if err := serverInst.HandleMsg(msg); err != nil {
 				log.Println("hushcomd ratnet bg thread: " + err.Error())
+				log.Println(msg)
 			}
 		}
 	}()
@@ -55,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	log.Println("Public Content Key: ", string(pubsrv.ToB64()))
+	log.Println("Public Content Key: ", pubsrv.ToB64())
 
 	serve(https.New("cert.pem", "key.pem", node, true), node, publicString)
 

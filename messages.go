@@ -77,10 +77,16 @@ type ListChansRespMsg struct {
 	Channels []Channel
 }
 
+var (
+	hcKeyLabel = []byte{
+		0x8b, 0xbb, 0xaa, 0xf0, 0x93, 0xe9, 0x43, 0x54,
+		0xa8, 0x76, 0xd8, 0x56, 0x30, 0x6b, 0x37, 0x25}
+)
+
 // SignMsg - Sign a message (key is not base64 here)
 func SignMsg(key bc.PubKey, msg Msg) ([]byte, error) {
 	//log.Println("SignMsg, key:", key)
-	return bc.DestHash(key, msg.SignMe())
+	return bc.Kdf(msg.SignMe(), hcKeyLabel, key.ToBytes())
 }
 
 // VerifyMsg - Verify a message signature
@@ -89,5 +95,5 @@ func VerifyMsg(key bc.PubKey, msg Msg) bool {
 	if err != nil {
 		return false
 	}
-	return (bytes.Compare(sig, msg.Sig) == 0)
+	return (bytes.Equal(sig, msg.Sig))
 }
