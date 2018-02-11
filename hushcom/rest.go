@@ -253,7 +253,7 @@ func (r *Remote) PostChannelJoin(ctx *jas.Context) { // `POST /v1/remote/channel
 	/*
 		body:  Name=abc&Password=pwd&Key=b64pubkey
 	*/
-	password := ""
+	var password string
 	name := ctx.RequireString("Name")
 	password, _ = ctx.FindString("Password")
 	keyA := ctx.RequireString("Key") // we require pubkey here because it's not in our keyring yet

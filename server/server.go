@@ -203,7 +203,7 @@ func (modInst *Server) HandleMsg(msg api.Msg) error {
 		}
 		// does this channel exist?
 		if modInst.HCSrvChans[msgObj.ChanName] != nil {
-			return errors.New("Error creating channel")
+			return errors.New("Error creating channel - already exists")
 		}
 		// if channel doesn't exist, create channel
 		modInst.HCSrvChans[msgObj.ChanName] = new(HCSrvChan) // make chan object

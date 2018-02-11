@@ -20,7 +20,7 @@ var (
 	// HUSHCOM - Destination name for the Hushcom Server
 	HUSHCOM = "HushComServer"
 	// HUSHCOMPKA - ASCII base64 version of Server PubKey
-	HUSHCOMPKA = "Dr66J/nYJ622ElEXXqOBtonVOdlsFJwcehdqRx75bW4="
+	HUSHCOMPKA = "EuUE0KI4cySH/BkLSHlr7iBAaYikdYAC6M0GhxMk3Ew="
 	// HUSHCOMPK - binary version of Server PubKey
 	HUSHCOMPK bc.PubKey
 )
@@ -247,6 +247,10 @@ func (modInst *Client) NewListChansMsg() error {
 
 // NewNewChanMsg - Create a "register a new channel" message for the Hushcom server
 func (modInst *Client) NewNewChanMsg(chanName string, chanPubKey string) error {
+	if modInst.CurrentProfilePubKey == nil {
+		return errors.New("No profile loaded")
+	}
+
 	var reg hushcom.NewChanMsg
 	reg.ChanName = chanName
 	reg.ChanPubKey = chanPubKey

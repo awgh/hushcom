@@ -26,19 +26,17 @@ import (
 func handleCORS(r *http.Request, responseHeader http.Header) bool {
 	responseHeader.Add("Access-Control-Allow-Origin", "*")
 	responseHeader.Add("Access-Control-Allow-Methods", "GET,POST,PUT")
-	if r.Method == "OPTIONS" {
-		return false
-	}
-	return true
+	return r.Method != "OPTIONS"
 }
 
-func serve(transportAdmin api.Transport, node *qldb.Node, listenRest, certfile, keyfile string) {
+func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, keyfile string) {
 
 	node.FlushOutbox(0)
 	node.SetPolicy(
-		policy.NewPoll(transportAdmin, node))
-	node.Start()
-
+		policy.NewPoll(transportAdmin, node, 1000))
+	if err := node.Start(); err != nil {
+		log.Fatal(err.Error())
+	}
 	pubsrv, err := node.ID()
 	if err != nil {
 		log.Fatal(err.Error())
