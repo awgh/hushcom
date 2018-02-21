@@ -56,7 +56,7 @@ func (p *Profile) Get(ctx *jas.Context) { // `GET /v1/profile`
 	result, err := p.hc.Node.GetProfiles()
 	ctx.Data = result
 	jaserr(ctx, err)
-	log.Println("getprofile result:", result, err)
+	log.Printf("getprofile result: %+v  err: %+v\n", result, err)
 }
 
 // PutLoad - Load a profile

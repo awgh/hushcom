@@ -14,7 +14,7 @@ import (
 	"github.com/awgh/ratnet/api"
 	"github.com/awgh/ratnet/nodes/qldb"
 	"github.com/awgh/ratnet/policy"
-	"github.com/awgh/ratnet/transports/https"
+	"github.com/awgh/ratnet/transports/tls"
 
 	"github.com/coocood/jas"
 )
@@ -33,7 +33,7 @@ func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, ke
 
 	node.FlushOutbox(0)
 	node.SetPolicy(
-		policy.NewPoll(transportAdmin, node, 1000))
+		policy.NewPoll(transportAdmin, node, 500))
 	if err := node.Start(); err != nil {
 		log.Fatal(err.Error())
 	}
@@ -110,5 +110,5 @@ func main() {
 	keyfile := "key.pem"
 	bc.InitSSL(certfile, keyfile, true)
 
-	serve(https.New(certfile, keyfile, node, true), node, restString, certfile, keyfile)
+	serve(tls.New(certfile, keyfile, node, true), node, restString, certfile, keyfile)
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/awgh/ratnet/api"
 	"github.com/awgh/ratnet/nodes/qldb"
 	"github.com/awgh/ratnet/policy"
-	"github.com/awgh/ratnet/transports/https"
+	"github.com/awgh/ratnet/transports/tls"
 )
 
 // usage: ./hushcomd -dbfile=ratnet2.ql -p=20003 -ap=21003
@@ -61,7 +61,7 @@ func main() {
 	}
 	log.Println("Public Content Key: ", pubsrv.ToB64())
 
-	serve(https.New("cert.pem", "key.pem", node, true), node, publicString)
+	serve(tls.New("cert.pem", "key.pem", node, true), node, publicString)
 
 	for {
 		time.Sleep(time.Second * 3600)
