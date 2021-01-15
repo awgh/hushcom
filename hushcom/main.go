@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -33,7 +34,7 @@ func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, ke
 
 	node.FlushOutbox(0)
 	node.SetPolicy(
-		policy.NewPoll(transportAdmin, node, 500))
+		policy.NewPoll(transportAdmin, node, 500, 0))
 	if err := node.Start(); err != nil {
 		log.Fatal(err.Error())
 	}
@@ -110,5 +111,14 @@ func main() {
 	keyfile := "key.pem"
 	bc.InitSSL(certfile, keyfile, true)
 
-	serve(tls.New(certfile, keyfile, node, true), node, restString, certfile, keyfile)
+	cert, err := ioutil.ReadFile(certfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	key, err := ioutil.ReadFile(keyfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serve(tls.New(cert, key, node, true), node, restString, certfile, keyfile)
 }

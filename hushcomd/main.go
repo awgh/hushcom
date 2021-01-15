@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"time"
 
+	"github.com/awgh/bencrypt/bc"
 	"github.com/awgh/bencrypt/ecc"
 	"github.com/awgh/hushcom/server"
 	"github.com/awgh/ratnet/api"
@@ -61,7 +63,18 @@ func main() {
 	}
 	log.Println("Public Content Key: ", pubsrv.ToB64())
 
-	serve(tls.New("cert.pem", "key.pem", node, true), node, publicString)
+	certfile := "cert.pem"
+	keyfile := "key.pem"
+	bc.InitSSL(certfile, keyfile, true)
+	cert, err := ioutil.ReadFile(certfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	key, err := ioutil.ReadFile(keyfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	serve(tls.New(cert, key, node, true), node, publicString)
 
 	for {
 		time.Sleep(time.Second * 3600)
