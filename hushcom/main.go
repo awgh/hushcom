@@ -14,13 +14,11 @@ import (
 	"github.com/awgh/hushcom/client"
 	"github.com/awgh/ratnet/api"
 	"github.com/awgh/ratnet/nodes/qldb"
-	"github.com/awgh/ratnet/policy"
+	"github.com/awgh/ratnet/policy/poll"
 	"github.com/awgh/ratnet/transports/tls"
 
 	"github.com/coocood/jas"
 )
-
-// go get github.com/coocood/jas
 
 // usage: ./hushcom -dbfile=ratnet2.ql -p=20003
 
@@ -31,10 +29,9 @@ func handleCORS(r *http.Request, responseHeader http.Header) bool {
 }
 
 func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, keyfile string) {
-
 	node.FlushOutbox(0)
 	node.SetPolicy(
-		policy.NewPoll(transportAdmin, node, 500, 0))
+		poll.New(transportAdmin, node, 500, 0))
 	if err := node.Start(); err != nil {
 		log.Fatal(err.Error())
 	}
@@ -49,7 +46,7 @@ func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, ke
 	}
 
 	var peer api.Peer
-	debug := true //todo: make this a CLI param
+	debug := true // todo: make this a CLI param
 	if debug {
 		peer = api.Peer{Name: "localhost", URI: "127.0.0.1:20001", Enabled: true}
 	} else if runtime.GOOS == "android" {
@@ -88,13 +85,12 @@ func serve(transportAdmin api.Transport, node api.Node, listenRest, certfile, ke
 	mux.Handle(router.BasePath, router)
 	fmt.Println(router.HandledPaths(true))
 
-	//wg.Add(1)
+	// wg.Add(1)
 	log.Fatal(http.ListenAndServeTLS(listenRest, certfile, keyfile, mux))
-	//wg.Done()
+	// wg.Done()
 }
 
 func main() {
-
 	var dbFile string
 	var restPort int
 

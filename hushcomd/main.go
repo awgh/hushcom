@@ -13,16 +13,15 @@ import (
 	"github.com/awgh/hushcom/server"
 	"github.com/awgh/ratnet/api"
 	"github.com/awgh/ratnet/nodes/qldb"
-	"github.com/awgh/ratnet/policy"
+	pserver "github.com/awgh/ratnet/policy/server"
 	"github.com/awgh/ratnet/transports/tls"
 )
 
 // usage: ./hushcomd -dbfile=ratnet2.ql -p=20003 -ap=21003
 
 func serve(transportPublic api.Transport, node api.Node, listenPublic string) {
-
 	node.SetPolicy(
-		policy.NewServer(transportPublic, listenPublic, false))
+		pserver.New(transportPublic, listenPublic, false))
 
 	log.Println("Public Hushcom Server starting: ", listenPublic)
 	if err := node.Start(); err != nil {
@@ -33,7 +32,6 @@ func serve(transportPublic api.Transport, node api.Node, listenPublic string) {
 var db func() *sql.DB
 
 func main() {
-
 	var dbFile string
 	var publicPort int
 
